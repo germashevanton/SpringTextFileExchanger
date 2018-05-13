@@ -1,5 +1,6 @@
 package hello.storage;
 
+import hello.TCPClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
@@ -8,6 +9,8 @@ import org.springframework.util.FileSystemUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
@@ -15,16 +18,26 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.List;
 import java.util.stream.Stream;
 
 @Service
 public class FileSystemStorageService implements StorageService {
 
     private final Path rootLocation;
+    public static Path file;
+
+
+    @Autowired
+    private TCPClient tcpClient;
 
     @Autowired
     public FileSystemStorageService(StorageProperties properties) {
         this.rootLocation = Paths.get(properties.getLocation());
+
     }
 
     @Override
@@ -51,15 +64,32 @@ public class FileSystemStorageService implements StorageService {
     }
 
     @Override
-    public Stream<Path> loadAll() {
+    public Stream<String> loadAll() {
         try {
-            return Files.walk(this.rootLocation, 1)
-                    .filter(path -> !path.equals(this.rootLocation))
-                    .map(this.rootLocation::relativize);
+            List<String> list = new ArrayList<>();
+
+            BufferedReader br = new BufferedReader(new FileReader("app.log"));
+            try {
+
+                String line = br.readLine();
+
+                while (line != null) {
+                    String fileName = line.split(":")[1];
+                    list.add(fileName);
+                    line = br.readLine();
+                }
+
+            } finally {
+                br.close();
+            }
+
+            return list.stream();
         }
         catch (IOException e) {
             throw new StorageException("Failed to read stored files", e);
         }
+
+
 
     }
 
@@ -71,8 +101,17 @@ public class FileSystemStorageService implements StorageService {
     @Override
     public Resource loadAsResource(String filename) {
         try {
-            Path file = load(filename);
+            Calendar startTime = Calendar.getInstance();
+            Calendar currentTime;
+            startTime.add(Calendar.MINUTE,1);
+            tcpClient.sendRequestOnRequiredFile(filename);
+            do {
+                currentTime = Calendar.getInstance();
+            }
+            while (file.getFileName().toString() == filename || startTime.compareTo(currentTime) == 1);
             Resource resource = new UrlResource(file.toUri());
+
+
             if (resource.exists() || resource.isReadable()) {
                 return resource;
             }

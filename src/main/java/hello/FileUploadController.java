@@ -16,22 +16,42 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import java.io.IOException;
 import java.util.stream.Collectors;
 
+import static hello.Application.APP_IDENTIFIER;
+
 @Controller
 public class FileUploadController {
 
+    @Autowired
     private final StorageService storageService;
 
     @Autowired
+    private TCPServer tcpServer;
+
+    @Autowired
+    private TCPClient tcpClient;
+
+
     public FileUploadController(StorageService storageService) {
         this.storageService = storageService;
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    tcpServer.getData();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }).start();
+
     }
 
     @GetMapping("/")
     public String listUploadedFiles(Model model) throws IOException {
 
         model.addAttribute("files", storageService.loadAll().map(
-                path -> MvcUriComponentsBuilder.fromMethodName(FileUploadController.class,
-                        "serveFile", path.getFileName().toString()).build().toString())
+                fileName -> MvcUriComponentsBuilder.fromMethodName(FileUploadController.class,
+                        "serveFile", fileName).build().toString())
                 .collect(Collectors.toList()));
 
         return "uploadForm";
@@ -40,6 +60,7 @@ public class FileUploadController {
     @GetMapping("/files/{filename:.+}")
     @ResponseBody
     public ResponseEntity<Resource> serveFile(@PathVariable String filename) {
+
 
         Resource file = storageService.loadAsResource(filename);
         return ResponseEntity.ok().header(HttpHeaders.CONTENT_DISPOSITION,
@@ -50,7 +71,12 @@ public class FileUploadController {
     public String handleFileUpload(@RequestParam("file") MultipartFile file,
                                    RedirectAttributes redirectAttributes) {
 
-        storageService.store(file);
+        Application.logger.info(APP_IDENTIFIER + ":" + file.getOriginalFilename());
+        try {
+            tcpClient.sendFile(file);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         redirectAttributes.addFlashAttribute("message",
                 "You successfully uploaded " + file.getOriginalFilename() + "!");
 
