@@ -30,7 +30,7 @@ public class Application {
     CommandLineRunner init(StorageService storageService) {
         return (args) -> {
             logger.info("application " + APP_IDENTIFIER + " started");
-            storageService.deleteAll();
+            //storageService.deleteAll();
             storageService.init();
         };
     }
