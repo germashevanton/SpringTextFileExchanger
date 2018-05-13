@@ -8,7 +8,7 @@ import java.nio.file.Path;
 import java.util.stream.Stream;
 
 
-@Component
+
 public interface StorageService {
 
     void init();
